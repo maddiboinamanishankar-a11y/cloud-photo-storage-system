@@ -1,0 +1,1392 @@
+from flask import Flask, jsonify, render_template_string
+import random
+import time
+from dataclasses import dataclass, asdict
+
+app = Flask(__name__)
+
+
+# ============================================================
+# CLOUD SERVER
+# ============================================================
+
+@dataclass
+class Server:
+    id: int
+    cpu: float
+    memory: float
+    network: float
+    requests: int
+    status: str = "HEALTHY"
+    cost_per_hour: float = 0.10
+
+    def update(self):
+        # Simulate changing cloud workload
+        self.cpu = max(
+            0,
+            min(100, self.cpu + random.uniform(-15, 18))
+        )
+
+        self.memory = max(
+            0,
+            min(100, self.memory + random.uniform(-10, 12))
+        )
+
+        self.network = max(
+            0,
+            min(100, self.network + random.uniform(-15, 15))
+        )
+
+        self.requests = random.randint(100, 3000)
+
+        # Health detection
+        if self.cpu >= 90 or self.memory >= 90:
+            self.status = "CRITICAL"
+
+        elif self.cpu >= 75 or self.memory >= 75:
+            self.status = "WARNING"
+
+        else:
+            self.status = "HEALTHY"
+
+
+# ============================================================
+# CLOUD OPTIMIZER
+# ============================================================
+
+class CloudOptimizer:
+
+    def __init__(self):
+
+        self.servers = [
+            Server(
+                id=1,
+                cpu=45,
+                memory=40,
+                network=30,
+                requests=500
+            ),
+
+            Server(
+                id=2,
+                cpu=50,
+                memory=45,
+                network=35,
+                requests=700
+            ),
+
+            Server(
+                id=3,
+                cpu=35,
+                memory=50,
+                network=25,
+                requests=400
+            )
+        ]
+
+        self.history = []
+
+        self.total_cost = 0
+
+        self.events = []
+
+    # --------------------------------------------------------
+    # MONITORING
+    # --------------------------------------------------------
+
+    def monitor(self):
+
+        for server in self.servers:
+            server.update()
+
+        cpu = self.average_cpu()
+        memory = self.average_memory()
+
+        self.history.append({
+            "time": time.strftime("%H:%M:%S"),
+            "cpu": cpu,
+            "memory": memory,
+            "servers": len(self.servers)
+        })
+
+        # Keep last 50 records
+        self.history = self.history[-50:]
+
+    # --------------------------------------------------------
+    # AVERAGE CPU
+    # --------------------------------------------------------
+
+    def average_cpu(self):
+
+        if not self.servers:
+            return 0
+
+        return round(
+            sum(s.cpu for s in self.servers)
+            / len(self.servers),
+            2
+        )
+
+    # --------------------------------------------------------
+    # AVERAGE MEMORY
+    # --------------------------------------------------------
+
+    def average_memory(self):
+
+        if not self.servers:
+            return 0
+
+        return round(
+            sum(s.memory for s in self.servers)
+            / len(self.servers),
+            2
+        )
+
+    # --------------------------------------------------------
+    # AVERAGE NETWORK
+    # --------------------------------------------------------
+
+    def average_network(self):
+
+        if not self.servers:
+            return 0
+
+        return round(
+            sum(s.network for s in self.servers)
+            / len(self.servers),
+            2
+        )
+
+    # --------------------------------------------------------
+    # TOTAL REQUESTS
+    # --------------------------------------------------------
+
+    def total_requests(self):
+
+        return sum(
+            server.requests
+            for server in self.servers
+        )
+
+    # --------------------------------------------------------
+    # AUTO SCALING
+    # --------------------------------------------------------
+
+    def auto_scale(self):
+
+        cpu = self.average_cpu()
+        memory = self.average_memory()
+
+        # SCALE UP
+        if cpu > 75 or memory > 80:
+
+            if len(self.servers) < 10:
+
+                new_id = max(
+                    server.id
+                    for server in self.servers
+                ) + 1
+
+                new_server = Server(
+                    id=new_id,
+                    cpu=random.uniform(10, 30),
+                    memory=random.uniform(20, 40),
+                    network=random.uniform(10, 30),
+                    requests=random.randint(100, 400)
+                )
+
+                self.servers.append(new_server)
+
+                event = (
+                    f"Scale UP: Server {new_id} "
+                    f"added because workload is high."
+                )
+
+                self.events.append({
+                    "time": time.strftime("%H:%M:%S"),
+                    "message": event
+                })
+
+                return event
+
+        # SCALE DOWN
+        elif cpu < 30 and memory < 35:
+
+            if len(self.servers) > 1:
+
+                removed = self.servers.pop()
+
+                event = (
+                    f"Scale DOWN: Server "
+                    f"{removed.id} removed."
+                )
+
+                self.events.append({
+                    "time": time.strftime("%H:%M:%S"),
+                    "message": event
+                })
+
+                return event
+
+        return "No scaling required."
+
+    # --------------------------------------------------------
+    # WORKLOAD PREDICTION
+    # --------------------------------------------------------
+
+    def predict(self):
+
+        if len(self.history) < 5:
+            return "Collecting data..."
+
+        recent = self.history[-5:]
+
+        old_cpu = recent[0]["cpu"]
+        new_cpu = recent[-1]["cpu"]
+
+        trend = new_cpu - old_cpu
+
+        if trend > 15:
+            return "HIGH LOAD EXPECTED"
+
+        elif trend > 5:
+            return "LOAD INCREASING"
+
+        elif trend < -15:
+            return "LOW LOAD EXPECTED"
+
+        elif trend < -5:
+            return "LOAD DECREASING"
+
+        return "STABLE"
+
+    # --------------------------------------------------------
+    # COST CALCULATION
+    # --------------------------------------------------------
+
+    def calculate_cost(self):
+
+        hourly_cost = sum(
+            server.cost_per_hour
+            for server in self.servers
+        )
+
+        # Simulation: each update = 1 minute
+        minute_cost = hourly_cost / 60
+
+        self.total_cost += minute_cost
+
+        return round(self.total_cost, 4)
+
+    # --------------------------------------------------------
+    # HEALTH MONITOR
+    # --------------------------------------------------------
+
+    def health(self):
+
+        critical = [
+            server.id
+            for server in self.servers
+            if server.status == "CRITICAL"
+        ]
+
+        warning = [
+            server.id
+            for server in self.servers
+            if server.status == "WARNING"
+        ]
+
+        if critical:
+            overall = "CRITICAL"
+
+        elif warning:
+            overall = "WARNING"
+
+        else:
+            overall = "HEALTHY"
+
+        return {
+            "overall": overall,
+            "critical": critical,
+            "warning": warning
+        }
+
+    # --------------------------------------------------------
+    # OPTIMIZATION
+    # --------------------------------------------------------
+
+    def optimize(self):
+
+        scaling = self.auto_scale()
+
+        prediction = self.predict()
+
+        cost = self.calculate_cost()
+
+        return {
+            "scaling": scaling,
+            "prediction": prediction,
+            "cost": cost
+        }
+
+    # --------------------------------------------------------
+    # STATUS
+    # --------------------------------------------------------
+
+    def get_status(self):
+
+        health = self.health()
+
+        return {
+            "servers": [
+                asdict(server)
+                for server in self.servers
+            ],
+
+            "server_count":
+                len(self.servers),
+
+            "cpu":
+                self.average_cpu(),
+
+            "memory":
+                self.average_memory(),
+
+            "network":
+                self.average_network(),
+
+            "requests":
+                self.total_requests(),
+
+            "cost":
+                round(self.total_cost, 4),
+
+            "prediction":
+                self.predict(),
+
+            "health":
+                health,
+
+            "history":
+                self.history,
+
+            "events":
+                self.events[-10:]
+        }
+
+
+# ============================================================
+# GLOBAL CLOUD SYSTEM
+# ============================================================
+
+cloud = CloudOptimizer()
+
+
+# ============================================================
+# DASHBOARD
+# ============================================================
+
+HTML = """
+
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0">
+
+<title>Advanced Cloud Computing Dashboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+
+    margin: 0;
+
+    font-family:
+        Arial,
+        Helvetica,
+        sans-serif;
+
+    background:
+        linear-gradient(
+            135deg,
+            #020617,
+            #0f172a
+        );
+
+    color: white;
+
+}
+
+header {
+
+    padding: 25px;
+
+    text-align: center;
+
+    background: #020617;
+
+    border-bottom:
+        1px solid #334155;
+
+}
+
+header h1 {
+
+    margin: 0;
+
+    color: #38bdf8;
+
+}
+
+.container {
+
+    max-width: 1500px;
+
+    margin: auto;
+
+    padding: 25px;
+
+}
+
+.cards {
+
+    display: grid;
+
+    grid-template-columns:
+        repeat(
+            auto-fit,
+            minmax(200px, 1fr)
+        );
+
+    gap: 20px;
+
+}
+
+.card {
+
+    background:
+        rgba(30,41,59,.9);
+
+    border:
+        1px solid #334155;
+
+    border-radius: 15px;
+
+    padding: 20px;
+
+    box-shadow:
+        0 10px 30px
+        rgba(0,0,0,.3);
+
+}
+
+.card h3 {
+
+    color: #94a3b8;
+
+}
+
+.value {
+
+    font-size: 32px;
+
+    font-weight: bold;
+
+    color: #38bdf8;
+
+}
+
+.dashboard {
+
+    display: grid;
+
+    grid-template-columns:
+        repeat(
+            auto-fit,
+            minmax(400px, 1fr)
+        );
+
+    gap: 20px;
+
+    margin-top: 25px;
+
+}
+
+.panel {
+
+    background:
+        rgba(30,41,59,.9);
+
+    padding: 20px;
+
+    border-radius: 15px;
+
+    border:
+        1px solid #334155;
+
+}
+
+button {
+
+    border: none;
+
+    padding: 12px 20px;
+
+    border-radius: 8px;
+
+    color: white;
+
+    background: #2563eb;
+
+    cursor: pointer;
+
+    font-size: 15px;
+
+}
+
+button:hover {
+
+    background: #1d4ed8;
+
+}
+
+table {
+
+    width: 100%;
+
+    border-collapse:
+        collapse;
+
+}
+
+th, td {
+
+    padding: 12px;
+
+    text-align: center;
+
+    border-bottom:
+        1px solid #334155;
+
+}
+
+.HEALTHY {
+
+    color: #22c55e;
+
+}
+
+.WARNING {
+
+    color: #facc15;
+
+}
+
+.CRITICAL {
+
+    color: #ef4444;
+
+}
+
+.status {
+
+    font-size: 20px;
+
+    font-weight: bold;
+
+}
+
+.event {
+
+    padding: 10px;
+
+    margin: 5px 0;
+
+    background: #0f172a;
+
+    border-radius: 8px;
+
+}
+
+</style>
+
+</head>
+
+
+<body>
+
+
+<header>
+
+<h1>☁️ Advanced Cloud Resource Optimizer</h1>
+
+<p>
+AI-inspired monitoring • Auto Scaling •
+Cost Optimization • Health Monitoring
+</p>
+
+</header>
+
+
+<div class="container">
+
+
+<div class="cards">
+
+
+<div class="card">
+
+<h3>Cloud Servers</h3>
+
+<div class="value"
+     id="servers">
+0
+</div>
+
+</div>
+
+
+<div class="card">
+
+<h3>CPU Usage</h3>
+
+<div class="value"
+     id="cpu">
+0%
+</div>
+
+</div>
+
+
+<div class="card">
+
+<h3>Memory Usage</h3>
+
+<div class="value"
+     id="memory">
+0%
+</div>
+
+</div>
+
+
+<div class="card">
+
+<h3>Network Usage</h3>
+
+<div class="value"
+     id="network">
+0%
+</div>
+
+</div>
+
+
+<div class="card">
+
+<h3>Requests</h3>
+
+<div class="value"
+     id="requests">
+0
+</div>
+
+</div>
+
+
+<div class="card">
+
+<h3>Cloud Cost</h3>
+
+<div class="value"
+     id="cost">
+$0
+</div>
+
+</div>
+
+
+<div class="card">
+
+<h3>System Health</h3>
+
+<div class="value status"
+     id="health">
+HEALTHY
+</div>
+
+</div>
+
+
+<div class="card">
+
+<h3>Prediction</h3>
+
+<div class="value"
+     id="prediction">
+WAITING
+</div>
+
+</div>
+
+
+</div>
+
+
+<br>
+
+
+<button onclick="manualOptimization()">
+
+⚙️ Run Optimization
+
+</button>
+
+
+<div id="optimization"
+     style="margin-top:15px">
+</div>
+
+
+<div class="dashboard">
+
+
+<div class="panel">
+
+<h2>📊 CPU Monitoring</h2>
+
+<canvas id="cpuChart"></canvas>
+
+</div>
+
+
+<div class="panel">
+
+<h2>💾 Memory Monitoring</h2>
+
+<canvas id="memoryChart"></canvas>
+
+</div>
+
+
+</div>
+
+
+<div class="panel"
+     style="margin-top:25px">
+
+
+<h2>🖥️ Cloud Servers</h2>
+
+
+<table>
+
+
+<thead>
+
+<tr>
+
+<th>ID</th>
+
+<th>CPU</th>
+
+<th>Memory</th>
+
+<th>Network</th>
+
+<th>Requests</th>
+
+<th>Status</th>
+
+</tr>
+
+</thead>
+
+
+<tbody id="serversTable">
+
+</tbody>
+
+
+</table>
+
+
+</div>
+
+
+<div class="dashboard">
+
+
+<div class="panel">
+
+<h2>🚨 System Events</h2>
+
+<div id="events"></div>
+
+</div>
+
+
+<div class="panel">
+
+<h2>❤️ Health Information</h2>
+
+<div id="healthDetails"></div>
+
+</div>
+
+
+</div>
+
+
+</div>
+
+
+<script>
+
+
+let cpuChart;
+
+let memoryChart;
+
+
+function createCharts() {
+
+
+    cpuChart = new Chart(
+
+        document.getElementById(
+            "cpuChart"
+        ),
+
+        {
+
+            type: "line",
+
+            data: {
+
+                labels: [],
+
+                datasets: [{
+
+                    label:
+                        "CPU Usage %",
+
+                    data: [],
+
+                    borderColor:
+                        "#38bdf8",
+
+                    backgroundColor:
+                        "rgba(56,189,248,.15)",
+
+                    fill: true,
+
+                    tension: .4
+
+                }]
+
+            },
+
+            options: {
+
+                responsive: true,
+
+                scales: {
+
+                    y: {
+
+                        min: 0,
+
+                        max: 100
+
+                    }
+
+                }
+
+            }
+
+        }
+
+    );
+
+
+    memoryChart = new Chart(
+
+        document.getElementById(
+            "memoryChart"
+        ),
+
+        {
+
+            type: "line",
+
+            data: {
+
+                labels: [],
+
+                datasets: [{
+
+                    label:
+                        "Memory Usage %",
+
+                    data: [],
+
+                    borderColor:
+                        "#a78bfa",
+
+                    backgroundColor:
+                        "rgba(167,139,250,.15)",
+
+                    fill: true,
+
+                    tension: .4
+
+                }]
+
+            },
+
+            options: {
+
+                responsive: true,
+
+                scales: {
+
+                    y: {
+
+                        min: 0,
+
+                        max: 100
+
+                    }
+
+                }
+
+            }
+
+        }
+
+    );
+
+}
+
+
+async function updateDashboard() {
+
+
+    try {
+
+
+        const response =
+            await fetch(
+                "/api/status"
+            );
+
+
+        const data =
+            await response.json();
+
+
+        document.getElementById(
+            "servers"
+        ).innerText =
+            data.server_count;
+
+
+        document.getElementById(
+            "cpu"
+        ).innerText =
+            data.cpu + "%";
+
+
+        document.getElementById(
+            "memory"
+        ).innerText =
+            data.memory + "%";
+
+
+        document.getElementById(
+            "network"
+        ).innerText =
+            data.network + "%";
+
+
+        document.getElementById(
+            "requests"
+        ).innerText =
+            data.requests;
+
+
+        document.getElementById(
+            "cost"
+        ).innerText =
+            "$" + data.cost;
+
+
+        document.getElementById(
+            "health"
+        ).innerText =
+            data.health.overall;
+
+
+        document.getElementById(
+            "health"
+        ).className =
+            "value status " +
+            data.health.overall;
+
+
+        document.getElementById(
+            "prediction"
+        ).innerText =
+            data.prediction;
+
+
+        updateCharts(
+            data.history
+        );
+
+
+        updateServers(
+            data.servers
+        );
+
+
+        updateEvents(
+            data.events
+        );
+
+
+        updateHealth(
+            data.health
+        );
+
+
+    }
+
+    catch(error) {
+
+        console.log(error);
+
+    }
+
+}
+
+
+function updateCharts(history) {
+
+
+    const labels =
+        history.map(
+            item => item.time
+        );
+
+
+    const cpu =
+        history.map(
+            item => item.cpu
+        );
+
+
+    const memory =
+        history.map(
+            item => item.memory
+        );
+
+
+    cpuChart.data.labels =
+        labels;
+
+    cpuChart.data.datasets[0]
+        .data = cpu;
+
+    cpuChart.update();
+
+
+    memoryChart.data.labels =
+        labels;
+
+    memoryChart.data.datasets[0]
+        .data = memory;
+
+    memoryChart.update();
+
+}
+
+
+function updateServers(servers) {
+
+
+    const table =
+        document.getElementById(
+            "serversTable"
+        );
+
+
+    table.innerHTML = "";
+
+
+    servers.forEach(
+        server => {
+
+
+        table.innerHTML += `
+
+        <tr>
+
+            <td>
+                ${server.id}
+            </td>
+
+            <td>
+                ${server.cpu.toFixed(1)}%
+            </td>
+
+            <td>
+                ${server.memory.toFixed(1)}%
+            </td>
+
+            <td>
+                ${server.network.toFixed(1)}%
+            </td>
+
+            <td>
+                ${server.requests}
+            </td>
+
+            <td class="${server.status}">
+                ${server.status}
+            </td>
+
+        </tr>
+
+        `;
+
+    });
+
+}
+
+
+function updateEvents(events) {
+
+
+    const container =
+        document.getElementById(
+            "events"
+        );
+
+
+    container.innerHTML = "";
+
+
+    events.slice()
+        .reverse()
+        .forEach(event => {
+
+
+        container.innerHTML += `
+
+        <div class="event">
+
+            <b>
+                ${event.time}
+            </b>
+
+            <br>
+
+            ${event.message}
+
+        </div>
+
+        `;
+
+    });
+
+}
+
+
+function updateHealth(health) {
+
+
+    const element =
+        document.getElementById(
+            "healthDetails"
+        );
+
+
+    element.innerHTML = `
+
+        <p>
+            Overall:
+            <strong>
+                ${health.overall}
+            </strong>
+        </p>
+
+        <p>
+            Critical Servers:
+            ${health.critical.length}
+        </p>
+
+        <p>
+            Warning Servers:
+            ${health.warning.length}
+        </p>
+
+    `;
+
+}
+
+
+async function manualOptimization() {
+
+
+    const response =
+        await fetch(
+            "/api/optimize"
+        );
+
+
+    const data =
+        await response.json();
+
+
+    document.getElementById(
+        "optimization"
+    ).innerHTML = `
+
+        <b>
+            ${data.message}
+        </b>
+
+    `;
+
+
+    updateDashboard();
+
+}
+
+
+createCharts();
+
+updateDashboard();
+
+
+// Refresh dashboard every 3 seconds
+
+setInterval(
+    updateDashboard,
+    3000
+);
+
+
+</script>
+
+
+</body>
+
+</html>
+
+"""
+
+
+# ============================================================
+# API ROUTES
+# ============================================================
+
+@app.route("/")
+def home():
+
+    return render_template_string(
+        HTML
+    )
+
+
+@app.route("/api/status")
+def api_status():
+
+    # Update cloud metrics
+    cloud.monitor()
+
+    # Automatic optimization
+    cloud.optimize()
+
+    return jsonify(
+        cloud.get_status()
+    )
+
+
+@app.route("/api/optimize")
+def api_optimize():
+
+    result = cloud.optimize()
+
+    return jsonify({
+        "message":
+            result["scaling"],
+
+        "prediction":
+            result["prediction"],
+
+        "cost":
+            result["cost"]
+    })
+
+
+@app.route("/api/health")
+def api_health():
+
+    return jsonify(
+        cloud.health()
+    )
+
+
+@app.route("/api/servers")
+def api_servers():
+
+    return jsonify([
+        asdict(server)
+        for server in cloud.servers
+    ])
+
+
+# ============================================================
+# START APPLICATION
+# ============================================================
+
+if __name__ == "__main__":
+
+    print("=" * 60)
+
+    print(
+        "ADVANCED CLOUD RESOURCE OPTIMIZER"
+    )
+
+    print("=" * 60)
+
+    print(
+        "Dashboard: http://localhost:5000"
+    )
+
+    print(
+        "API:       http://localhost:5000/api/status"
+    )
+
+    print("=" * 60)
+
+    app.run(
+        host="0.0.0.0",
+        port=5000,
+        debug=True
+    )
